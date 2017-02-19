@@ -241,15 +241,14 @@ static struct {
 
 static int parse_version(void)
 {
-	if (!glGetIntegerv)
-	{
-		version.major = 2;
-		version.minor = 0;
-		return 0;
-	}
+	version.major = 2;
+	version.minor = 0;
 
-	glGetIntegerv(GL_MAJOR_VERSION, &version.major);
-	glGetIntegerv(GL_MINOR_VERSION, &version.minor);
+	if (glGetIntegerv)
+	{
+		glGetIntegerv(GL_MAJOR_VERSION, &version.major);
+		glGetIntegerv(GL_MINOR_VERSION, &version.minor);
+	}
 
 	if (version.major < 2)
 		return -1;
