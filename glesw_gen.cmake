@@ -147,6 +147,7 @@ message(STATUS "Generating glesw.c in src...")
 set(SRC_OUT ${OUTDIR}/src/glesw.c)
 file(WRITE ${SRC_OUT} ${UNLICENSE})
 file(APPEND ${SRC_OUT} "#include <${HDR_DIR}/glesw.h>
+#include <stdio.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN 1
@@ -241,14 +242,11 @@ static struct {
 
 static int parse_version(void)
 {
-	version.major = 2;
-	version.minor = 0;
+	if (!glGetString)
+		return -1;
 
-	if (glGetIntegerv)
-	{
-		glGetIntegerv(GL_MAJOR_VERSION, &version.major);
-		glGetIntegerv(GL_MINOR_VERSION, &version.minor);
-	}
+	const char* pcVer = (const char*)glGetString(GL_VERSION);
+	sscanf(pcVer, \"OpenGL ES %u.%u\", &version.major, &version.minor);
 
 	if (version.major < 2)
 		return -1;
