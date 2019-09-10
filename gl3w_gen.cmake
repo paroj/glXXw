@@ -63,7 +63,7 @@ endforeach()
 
 list(SORT PROCS)
 
-set(SPACES "                                                    ") # 52 spaces
+set(SPACES "                                                       ") # 55 spaces
 
 macro(getproctype PROC)
     string(TOUPPER ${PROC} P_T)
@@ -73,7 +73,7 @@ endmacro()
 macro(getproctype_aligned PROC)
     getproctype(${PROC})
     string(LENGTH ${P_T} LEN)
-    math(EXPR LEN "52 - ${LEN}")
+    math(EXPR LEN "55 - ${LEN}")
     string(SUBSTRING ${SPACES} 0 ${LEN} PAD)
     set(P_T "${P_T}${PAD}")
 endmacro()
@@ -122,7 +122,7 @@ endforeach()
 foreach(PROC ${PROCS})
     string(SUBSTRING ${PROC} 2 -1 P_S)
     string(LENGTH ${PROC} LEN)
-    math(EXPR LEN "45 - ${LEN}")
+    math(EXPR LEN "48 - ${LEN}")
     string(SUBSTRING ${SPACES} 0 ${LEN} PAD)
     file(APPEND ${HDR_OUT} "#define ${PROC}${PAD} gl3w${P_S}\n")
 endforeach()
@@ -142,14 +142,18 @@ file(WRITE ${SRC_OUT} ${UNLICENSE})
 file(APPEND ${SRC_OUT} "#include <GL/gl3w.h>
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
+#endif
 #include <windows.h>
 
 static HMODULE libgl;
+static PROC (__stdcall *wgl_get_proc_address)(LPCSTR);
 
 static void open_libgl(void)
 {
-	libgl = LoadLibraryA(\"opengl32.dll\");
+    libgl = LoadLibraryA(\"opengl32.dll\");
+    *(void **)(&wgl_get_proc_address) = GetProcAddress(libgl, \"wglGetProcAddress\");
 }
 
 static void close_libgl(void)
@@ -161,53 +165,43 @@ static GL3WglProc get_proc(const char *proc)
 {
 	GL3WglProc res;
 
-	res = (GL3WglProc)wglGetProcAddress(proc);
+	res = (GL3WglProc)wgl_get_proc_address(proc);
 	if (!res)
 		res = (GL3WglProc)GetProcAddress(libgl, proc);
 	return res;
 }
 #elif defined(__APPLE__) || defined(__APPLE_CC__)
-#include <Carbon/Carbon.h>
+#include <dlfcn.h>
 
-CFBundleRef bundle;
-CFURLRef bundleURL;
+static void *libgl;
 
 static void open_libgl(void)
 {
-	bundleURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault,
-		CFSTR(\"/System/Library/Frameworks/OpenGL.framework\"),
-		kCFURLPOSIXPathStyle, true);
-
-	bundle = CFBundleCreate(kCFAllocatorDefault, bundleURL);
-	assert(bundle != NULL);
+	libgl = dlopen(\"/System/Library/Frameworks/OpenGL.framework/OpenGL\", RTLD_LAZY | RTLD_LOCAL);
 }
 
 static void close_libgl(void)
 {
-	CFRelease(bundle);
-	CFRelease(bundleURL);
+	dlclose(libgl);
 }
 
 static GL3WglProc get_proc(const char *proc)
 {
-	GL3WglProc res;
+    GL3WglProc res;
 
-	CFStringRef procname = CFStringCreateWithCString(kCFAllocatorDefault, proc,
-		kCFStringEncodingASCII);
-	*(void **)(&res) = CFBundleGetFunctionPointerForName(bundle, procname);
-	CFRelease(procname);
+    *(void **)(&res) = dlsym(libgl, proc);
 	return res;
 }
 #else
 #include <dlfcn.h>
-#include <GL/glx.h>
 
+typedef GL3WglProc (*PFNGLXGETPROCADDRESSPROC)(const GLubyte *);
 static void *libgl;
 static PFNGLXGETPROCADDRESSPROC glx_get_proc_address;
 
 static void open_libgl(void)
 {
-	libgl = dlopen(\"libGL.so.1\", RTLD_LAZY | RTLD_GLOBAL);
+	libgl = dlopen(\"libGL.so.1\", RTLD_LAZY | RTLD_LOCAL);
     *(void **)(&glx_get_proc_address) = dlsym(libgl, \"glXGetProcAddressARB\");
 }
 
